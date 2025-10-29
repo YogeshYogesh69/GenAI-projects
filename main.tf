@@ -1,21 +1,28 @@
-provider "aws" {
-  region = "us-east-1"
+# Create a key pair
+resource "aws_key_pair" "instance_key" {
+  key_name   = var.key_name
+  public_key = tls_private_key.rsa_key.public_key_openssh
 }
 
-module "terraform_vpc" {
-  source              = "../../terraform_vpc"
-  vpc_cidr            = "10.0.0.0/16"
-  public_subnet_cidr  = "10.0.1.0/24"
-  private_subnet_cidr = "10.0.2.0/24"
-  project_name        = "demo_project"
+# Generate RSA key
+resource "tls_private_key" "rsa_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
 }
 
-module "ec2_instance" {
-  source        = "../../terraform_ec2"
-  subnet_id     = module.terraform_vpc.public_subnet_id
-  ami_id        = "ami-0360c520857e3138f"
-  instance_type = "t2.micro"
-  key_name      = "terraform_module"
-  instance_name = "demo_instance"
+# Save private key locally
+resource "local_file" "private_key" {
+  content  = tls_private_key.rsa_key.private_key_pem
+  filename = "${var.key_name}.pem"
+}
 
+resource "aws_instance" "web" {
+    ami           = var.ami_id
+    subnet_id     = var.subnet_id
+    instance_type = var.instance_type
+    key_name      = aws_key_pair.instance_key.key_name
+
+    tags = {
+        Name = var.instance_name
+    }
 }
